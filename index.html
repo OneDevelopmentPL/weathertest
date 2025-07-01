@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pogoda</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to bottom, #2193b0, #6dd5ed);
+      color: white;
+      min-height: 100vh;
+    }
+
+    #app {
+      padding: 20px;
+      max-width: 500px;
+      margin: auto;
+    }
+
+    input, button {
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+
+    input {
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    button {
+      background: #ffffff20;
+      color: white;
+      flex: 1;
+      cursor: pointer;
+    }
+
+    .card {
+      text-align: center;
+      background: rgba(255,255,255,0.1);
+      padding: 20px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+    }
+
+    .scroll-row {
+      display: flex;
+      overflow-x: auto;
+      gap: 12px;
+      padding-bottom: 10px;
+    }
+
+    .hour-box {
+      min-width: 70px;
+      background: rgba(255,255,255,0.15);
+      padding: 10px;
+      text-align: center;
+      border-radius: 15px;
+    }
+
+    .day-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 15px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 15px;
+      margin-bottom: 10px;
+    }
+
+    img {
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <input type="text" id="cityInput" placeholder="Wpisz miasto..." />
+    <div class="button-row">
+      <button onclick="getWeather()">Sprawdź</button>
+      <button onclick="getLocation()">📍</button>
+      <button onclick="startVoice()">🎤</button>
+    </div>
+
+    <div id="current-weather" class="card"></div>
+    <div id="hourly" class="scroll-row"></div>
+    <div id="daily"></div>
+  </div>
+
+  <script>
+    const apiKey = "c9213ba7a0c64f4db11192951252303";
+
+    async function getWeather() {
+      const city = document.getElementById("cityInput").value;
+      if (!city) return alert("Wpisz nazwę miasta!");
+
+      const url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${city}&days=3&lang=pl`;
+
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+
+        showCurrent(data);
+        showHourly(data.forecast.forecastday[0].hour);
+        showDaily(data.forecast.forecastday);
+      } catch (err) {
+        alert("Błąd: " + err.message);
+      }
+    }
+
+    function showCurrent(data) {
+      const box = document.getElementById("current-weather");
+      box.innerHTML = `
+        <h2>${data.location.name}</h2>
+        <img src="https:${data.current.condition.icon}" />
+        <h1>${data.current.temp_c}°C</h1>
+        <p>${data.current.condition.text}</p>
+      `;
+      document.body.style.background = chooseGradient(data.current.condition.text);
+    }
+
+    function showHourly(hours) {
+      const now = new Date().getHours();
+      const container = document.getElementById("hourly");
+      container.innerHTML = "";
+
+      for (let i = now; i < now + 6 && i < hours.length; i++) {
+        const h = hours[i];
+        container.innerHTML += `
+          <div class="hour-box">
+            <p>${h.time.slice(-5)}</p>
+            <img src="https:${h.condition.icon}" width="40" />
+            <p>${h.temp_c}°</p>
+          </div>
+        `;
+      }
+    }
+
+    function showDaily(days) {
+      const container = document.getElementById("daily");
+      container.innerHTML = "";
+
+      days.forEach(day => {
+        container.innerHTML += `
+          <div class="day-row">
+            <span>${day.date}</span>
+            <img src="https:${day.day.condition.icon}" width="30" />
+            <span>${day.day.mintemp_c}° / ${day.day.maxtemp_c}°</span>
+          </div>
+        `;
+      });
+    }
+
+    function chooseGradient(condition) {
+      const c = condition.toLowerCase();
+      if (c.includes("słonecznie") || c.includes("sun")) return "linear-gradient(to bottom, #fbc2eb, #a6c1ee)";
+      if (c.includes("pochmurno") || c.includes("cloud")) return "linear-gradient(to bottom, #757f9a, #d7dde8)";
+      if (c.includes("deszcz") || c.includes("rain")) return "linear-gradient(to bottom, #314755, #26a0da)";
+      if (c.includes("śnieg") || c.includes("snow")) return "linear-gradient(to bottom, #83a4d4, #b6fbff)";
+      return "linear-gradient(to bottom, #2193b0, #6dd5ed)";
+    }
+
+    function getLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(async (position) => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+
+          const url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${lat},${lon}&days=3&lang=pl`;
+          const res = await fetch(url);
+          const data = await res.json();
+
+          document.getElementById("cityInput").value = data.location.name;
+          showCurrent(data);
+          showHourly(data.forecast.forecastday[0].hour);
+          showDaily(data.forecast.forecastday);
+        }, () => {
+          alert("Nie udało się pobrać lokalizacji.");
+        });
+      } else {
+        alert("Twoja przeglądarka nie obsługuje lokalizacji.");
+      }
+    }
+
+    function startVoice() {
+      if (!('webkitSpeechRecognition' in window)) {
+        alert("Twoja przeglądarka nie obsługuje rozpoznawania mowy 😢");
+        return;
+      }
+
+      const recognition = new webkitSpeechRecognition();
+      recognition.lang = 'pl-PL';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.start();
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        document.getElementById("cityInput").value = transcript;
+        getWeather();
+      };
+
+      recognition.onerror = () => {
+        alert("Nie udało się rozpoznać mowy.");
+      };
+    }
+  </script>
+</body>
+</html>
